@@ -68,3 +68,5 @@ Scalar varY();
 
 Scalar disk(const Scalar& centerX, const Scalar& centerY, const Scalar& radius);
 Scalar rectangle(const Scalar& centerX, const Scalar& centerY, const Scalar& width, const Scalar& height);
+
+Scalar smooth_union(const Scalar& a, const Scalar& b, const Scalar& r);

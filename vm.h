@@ -10,7 +10,7 @@ constexpr int MAX_TILE_SIZE = 256;
 
 // A subgrid is a rectangular set of grid vertices. It is defined by its lower left corner
 // and the number of vertices in the x and y directions. Note that the subgrid includes
-// the the grid points that are nx, ny units away from the lower left corner. For example,
+// the grid points that are nx, ny units away from the lower left corner. For example,
 // if px = 0, py = 0, nx = 2, and ny = 2, the subgrid includes the grid points (0,0), (0,1),
 // (1,0), (1,1), (0,2), (1,2), (2,0), and (2,1).
 struct Subgrid 

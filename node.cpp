@@ -170,3 +170,14 @@ Scalar rectangle(const Scalar& centerX, const Scalar& centerY, const Scalar& wid
     
     return dist_outside + dist_inside;
 }
+
+Scalar smooth_union(const Scalar& a, const Scalar& b, const Scalar& r) {
+    Scalar val_a = r - a;
+    Scalar val_b = r - b;
+    Scalar zero = 0.0f;
+    Scalar u_x = max(val_a, zero);
+    Scalar u_y = max(val_b, zero);
+    Scalar length_u_sq = u_x.square() + u_y.square();
+    Scalar length_u = length_u_sq.sqrt();
+    return max(r, min(a, b)) - length_u;
+}

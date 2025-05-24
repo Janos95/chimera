@@ -27,18 +27,34 @@ FetchContent_Declare(SFML
 
 FetchContent_MakeAvailable(SFML)
 
-add_executable(hybrid_modeling 
-    main.cpp
-    vm.cpp
-    node.cpp
-    compiler.cpp
+# ImGui and ImGui-SFML integration
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.1
+    GIT_SHALLOW ON
 )
-target_link_libraries(hybrid_modeling PRIVATE SFML::Graphics SFML::Window SFML::System OpenMP::OpenMP_CXX)
+FetchContent_MakeAvailable(imgui)
 
-add_executable(hybrid_modeling_tests
-    tests.cpp
+FetchContent_Declare(
+    imgui-sfml
+    GIT_REPOSITORY https://github.com/SFML/imgui-sfml.git
+    GIT_TAG v3.0
+)
+set(IMGUI_DIR ${imgui_SOURCE_DIR})
+set(IMGUI_SFML_FIND_SFML OFF)
+set(IMGUI_SFML_IMGUI_DEMO ON)
+FetchContent_MakeAvailable(imgui-sfml)
+
+add_library(hybrid_modeling_lib
     vm.cpp
     node.cpp
     compiler.cpp
+    marching_squares.cpp
 )
-target_link_libraries(hybrid_modeling_tests PRIVATE doctest::doctest OpenMP::OpenMP_CXX)
+
+add_executable(hybrid_modeling main.cpp)
+target_link_libraries(hybrid_modeling PRIVATE SFML::Graphics SFML::Window SFML::System hybrid_modeling_lib ImGui-SFML::ImGui-SFML)
+
+add_executable(hybrid_modeling_tests tests.cpp)
+target_link_libraries(hybrid_modeling_tests PRIVATE hybrid_modeling_lib doctest::doctest)

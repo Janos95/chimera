@@ -308,14 +308,19 @@ void VM::solve_region(std::deque<Tile>& tiles, Subgrid subgrid, std::vector<Inst
         return;
     } 
 
-    int new_nx = subgrid.nx / 2;
-    int new_ny = subgrid.ny / 2;
+    // Integer division `subgrid.n / 2` means that if n is odd,
+    // the first half will be `(n-1)/2` and the second half will be `n - (n-1)/2 = (n+1)/2`.
+    // This ensures the entire grid is covered without overlap.
+    int nx_first_half = subgrid.nx / 2;
+    int nx_second_half = subgrid.nx - nx_first_half;
+    int ny_first_half = subgrid.ny / 2;
+    int ny_second_half = subgrid.ny - ny_first_half;
 
     // Create subgrids for the four quadrants
-    Subgrid ll = {subgrid.px, subgrid.py, new_nx, new_ny};                       // lower left
-    Subgrid lr = {subgrid.px + new_nx, subgrid.py, new_nx, new_ny};             // lower right
-    Subgrid ul = {subgrid.px, subgrid.py + new_ny, new_nx, new_ny};             // upper left
-    Subgrid ur = {subgrid.px + new_nx, subgrid.py + new_ny, new_nx, new_ny};    // upper right
+    Subgrid ll = {subgrid.px, subgrid.py, nx_first_half, ny_first_half};                       // lower left
+    Subgrid lr = {subgrid.px + nx_first_half, subgrid.py, nx_second_half, ny_first_half};           // lower right
+    Subgrid ul = {subgrid.px, subgrid.py + ny_first_half, nx_first_half, ny_second_half};           // upper left
+    Subgrid ur = {subgrid.px + nx_first_half, subgrid.py + ny_first_half, nx_second_half, ny_second_half}; // upper right
 
     Subgrid regions[4] = {ll, lr, ul, ur};
 
