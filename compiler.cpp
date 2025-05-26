@@ -25,6 +25,7 @@ std::vector<Instruction> compile(const Scalar& node) {
             // We've already processed this node's children, now create its instruction
             const Node& data = NodeManager::get().node_data[current.node_index];
             Instruction inst;
+            inst.shape = data.shape;
             inst.input0 = -1;
             inst.input1 = -1;
             

@@ -171,6 +171,7 @@ Scalar rectangle(const Scalar& centerX, const Scalar& centerY, const Scalar& wid
     return dist_outside + dist_inside;
 }
 
+// max(r, min(a, b)) - sqrt(max(r-a, 0)^2 + max(r-b, 0)^2)
 Scalar smooth_union(const Scalar& a, const Scalar& b, const Scalar& r) {
     Scalar val_a = r - a;
     Scalar val_b = r - b;

@@ -65,7 +65,7 @@ static int get_sign(float v) {
 }
 
 // Create a circle mesh
-Mesh create_disk_mesh(float radius, int segments) {
+ContouringResult create_disk_mesh(float radius, int segments) {
     Mesh mesh;
     for (int i = 0; i < segments; ++i) {
         float angle = 2.0f * M_PI * i / segments;
@@ -74,11 +74,15 @@ Mesh create_disk_mesh(float radius, int segments) {
     for (int i = 0; i < segments; ++i) {
         mesh.edges.push_back({static_cast<uint32_t>(i), static_cast<uint32_t>((i + 1) % segments)});
     }
-    return mesh;
+    
+    ContouringResult result;
+    result.mesh = mesh;
+    // No sign change data or expressions for simple geometric mesh
+    return result;
 }
 
 // Convert an implicit SDF to a mesh using marching squares
-Mesh implicit_to_mesh(Scalar implicit, int resolution) {
+ContouringResult implicit_to_mesh(Scalar implicit, int resolution) {
     VM vm(implicit);
     std::deque<Tile> tiles;
     vm.evaluate(tiles, {0, 0, resolution - 1, resolution - 1});
@@ -196,11 +200,10 @@ Mesh implicit_to_mesh(Scalar implicit, int resolution) {
         }
     }
 
-    // Move sign-change data and expressions into mesh
-    // Assumes Mesh struct has been updated in marching_squares.h:
-    // - std::unordered_map<int, std::pair<float, int>> sign_change_data;
-    // - std::vector<std::vector<Instruction>> expressions_list;
-    mesh.sign_change_data = std::move(local_sign_change_data);
-    mesh.expressions_list = std::move(mesh_expressions_list);
-    return mesh;
+    // Create ContouringResult with mesh and additional data
+    ContouringResult result;
+    result.mesh = mesh;
+    result.sign_change_data = std::move(local_sign_change_data);
+    result.expressions_list = std::move(mesh_expressions_list);
+    return result;
 } 

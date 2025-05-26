@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include "shapes.h"
 
 struct Scalar;
 
@@ -12,6 +13,7 @@ struct Instruction
     int input0;
     int input1;
     OpCode op;
+    const IShape* shape;
 };
 
 std::vector<Instruction> compile(const Scalar& node);

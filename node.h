@@ -2,8 +2,9 @@
 
 #include <unordered_map>
 
+struct IShape;
+
 enum class NodeType { Add, Sub, Mul, Max, Min, Neg, Abs, Square, Sqrt, X, Y, Constant };
-enum class PrimitiveType { Sphere, Box, None };
 
 struct Node {
     NodeType type;
@@ -12,8 +13,7 @@ struct Node {
     int handle_count = 0;   // Number of Node handles referring to this node
     int ref_count = 0;      // Number of other nodes referring to this node
     float value = 0.0f; 
-
-    PrimitiveType primitiveType = PrimitiveType::None;
+    const IShape* shape = nullptr;
 };
 
 class NodeManager {

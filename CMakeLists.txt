@@ -46,15 +46,29 @@ set(IMGUI_SFML_FIND_SFML OFF)
 set(IMGUI_SFML_IMGUI_DEMO ON)
 FetchContent_MakeAvailable(imgui-sfml)
 
+# Manifold 3D library for 2D boolean operations
+FetchContent_Declare(
+    manifold
+    GIT_REPOSITORY https://github.com/elalish/manifold.git
+    GIT_TAG v3.1.0
+    GIT_SHALLOW ON
+)
+FetchContent_MakeAvailable(manifold)
+
 add_library(hybrid_modeling_lib
     vm.cpp
     node.cpp
     compiler.cpp
     marching_squares.cpp
+    brep_boolean.cpp
+    shapes.cpp
 )
 
+# Link manifold and ImGui to the library target
+target_link_libraries(hybrid_modeling_lib PRIVATE manifold ImGui-SFML::ImGui-SFML)
+
 add_executable(hybrid_modeling main.cpp)
-target_link_libraries(hybrid_modeling PRIVATE SFML::Graphics SFML::Window SFML::System hybrid_modeling_lib ImGui-SFML::ImGui-SFML)
+target_link_libraries(hybrid_modeling PRIVATE SFML::Graphics SFML::Window SFML::System hybrid_modeling_lib ImGui-SFML::ImGui-SFML manifold)
 
 add_executable(hybrid_modeling_tests tests.cpp)
 target_link_libraries(hybrid_modeling_tests PRIVATE hybrid_modeling_lib doctest::doctest)
