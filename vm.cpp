@@ -27,15 +27,15 @@ VM::VM(const Scalar& implicit)
 
 std::span<float> VM::evaluate_batch(const std::vector<Instruction>& instructions, std::span<float> x_coords, std::span<float> y_coords) {
 
-    assert(x_coords.size() == y_coords.size() && x_coords.size() <= batch_capacity);
+    assert(x_coords.size() == y_coords.size() && x_coords.size() <= static_cast<size_t>(batch_capacity));
     const size_t num_instructions = instructions.size();
     const size_t n = x_coords.size();
     // Each instruction result block has size batch_capacity
     const size_t stride = batch_capacity;
 
-#define LOOP(expr) for(int j = 0; j < n; j++) { batch_vars[i * stride + j] = expr; }
+#define LOOP(expr) for(size_t j = 0; j < n; j++) { batch_vars[i * stride + j] = expr; }
 
-    for(int i = 0; i < num_instructions; i++) {
+    for(size_t i = 0; i < num_instructions; i++) {
         const Instruction& inst = instructions[i];
         switch(inst.op) {
             case OpCode::VarX:
@@ -55,6 +55,9 @@ std::span<float> VM::evaluate_batch(const std::vector<Instruction>& instructions
                 break;
             case OpCode::Mul:
                 LOOP(batch_vars[inst.input0 * stride + j] * batch_vars[inst.input1 * stride + j]);
+                break;
+            case OpCode::Div:
+                LOOP(batch_vars[inst.input0 * stride + j] / batch_vars[inst.input1 * stride + j]);
                 break;
             case OpCode::Max:
                 LOOP(fmax(batch_vars[inst.input0 * stride + j], batch_vars[inst.input1 * stride + j]));
@@ -133,6 +136,22 @@ Interval4 VM::evaluate_interval4(const std::vector<Instruction>& instructions, c
                 }
                 break;
             }
+            case OpCode::Div: {
+                for(int j = 0; j < 4; j++) {
+                    float a = interval_vars[inst.input0].lower[j], b = interval_vars[inst.input0].upper[j];
+                    float c = interval_vars[inst.input1].lower[j], d = interval_vars[inst.input1].upper[j];
+                    // Handle division by zero by clamping denominator away from zero
+                    if (c <= 0.0f && d >= 0.0f) {
+                        interval_vars[i].lower[j] = -std::numeric_limits<float>::infinity();
+                        interval_vars[i].upper[j] = std::numeric_limits<float>::infinity();
+                        continue;
+                    }
+                    float p1 = a/c, p2 = a/d, p3 = b/c, p4 = b/d;
+                    interval_vars[i].lower[j] = min4(p1, p2, p3, p4);
+                    interval_vars[i].upper[j] = max4(p1, p2, p3, p4);
+                }
+                break;
+            }
             case OpCode::Max: {
                 for(int j = 0; j < 4; j++) {
                     interval_vars[i].lower[j] = max2(interval_vars[inst.input0].lower[j], interval_vars[inst.input1].lower[j]);
@@ -200,9 +219,9 @@ Interval4 VM::evaluate_interval4(const std::vector<Instruction>& instructions, c
 }
 
 void VM::prune_instructions4(const std::vector<Instruction>& instructions, std::array<std::vector<Instruction>, 4>& compacted_instructions) {
-    int remap_size = instructions.size();
-    assert(remap_size <= remap.size());
-    assert(interval_vars.size() >= remap_size);
+    int remap_size = static_cast<int>(instructions.size());
+    assert(static_cast<size_t>(remap_size) <= remap.size());
+    assert(interval_vars.size() >= static_cast<size_t>(remap_size));
 
     memset(remap.data(), -1, remap_size * 4 * sizeof(int));
 

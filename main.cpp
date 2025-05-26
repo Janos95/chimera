@@ -73,7 +73,7 @@ void update_mesh() {
             Scalar current_shape = shapes[i]->get_sdf();
             
             if (union_radius > 0.0f) {
-                combined_sdf = smooth_union(combined_sdf, current_shape, Scalar(union_radius));
+                combined_sdf = inigo_smin(combined_sdf, current_shape, Scalar(union_radius));
             } else {
                 printf("[DEBUG] Using min union (sharp edges)\n");
                 combined_sdf = min(combined_sdf, current_shape);
@@ -91,7 +91,7 @@ int main()
     
     sf::RenderWindow window(sf::VideoMode({1024, 1024}), "Disk Mesh", sf::Style::Default, sf::State::Windowed, settings);
     window.setFramerateLimit(144);
-    ImGui::SFML::Init(window);
+    [[maybe_unused]] bool imgui_init_success = ImGui::SFML::Init(window);
     sf::Clock deltaClock;
 
     const float scale = 400.0f;
@@ -102,7 +102,6 @@ int main()
     float pos_y = 0.0f;
     bool is_dragging = false;
     sf::Vector2f last_mouse_pos;
-    bool isDiskDragging = false;
 
     const float rect_width = 0.6f;
     const float rect_height = 0.4f;

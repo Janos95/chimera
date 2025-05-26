@@ -12,6 +12,7 @@ struct Mesh {
 struct IShape {
     std::string name;
 
+    virtual ~IShape() = default;
     virtual Mesh get_mesh() = 0;
     virtual bool render_ui_properties() = 0; // Returns true if any property was changed
     virtual Scalar get_sdf() const = 0; // Returns the SDF representation of the shape

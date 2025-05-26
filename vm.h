@@ -88,11 +88,12 @@ struct VM
         };
     }
 
-    void solve_region(std::deque<Tile>& tiles, Subgrid subgrid, std::vector<Instruction> instructions);
-
 private:
     Interval4 evaluate_interval4(const std::vector<Instruction>& instructions, const Interval4& x, const Interval4& y);
+
     void prune_instructions4(const std::vector<Instruction>& instructions, std::array<std::vector<Instruction>, 4>& compacted_instructions);
+
+    void solve_region(std::deque<Tile>& tiles, Subgrid subgrid, std::vector<Instruction> instructions);
 
     int batch_capacity = 0;
     std::vector<float> batch_vars;

@@ -5,7 +5,7 @@
 
 struct Scalar;
 
-enum class OpCode { VarX, VarY, Const, Add, Sub, Mul, Max, Min, Neg, Abs, Square, Sqrt };
+enum class OpCode { VarX, VarY, Const, Add, Sub, Mul, Div, Max, Min, Neg, Abs, Square, Sqrt };
 
 struct Instruction 
 {
@@ -17,3 +17,6 @@ struct Instruction
 };
 
 std::vector<Instruction> compile(const Scalar& node);
+
+// Optimization pass that applies various optimizations including constant propagation
+void optimize_instructions(std::vector<Instruction>& instructions);

@@ -5,7 +5,6 @@
 #include "node.h"
 #include "vm.h"
 #include "shapes.h"
-#include "marching_squares.h"
 
 using namespace doctest;
 
@@ -100,122 +99,210 @@ TEST_CASE("Assignment") {
     CHECK(NodeManager::get().node_data.size() == n);
 } 
 
-TEST_CASE("Union of non-overlapping disk and rectangle - shape pointer verification") {
-    // -----------------------------
-    // 1. Define shapes far apart
-    // -----------------------------
-    auto rect_shape = std::make_unique<Rect>();
-    rect_shape->name = "test_rectangle";
-    rect_shape->pos_x = -0.5f;
-    rect_shape->pos_y = 0.0f;
-    rect_shape->width  = 0.3f;   // half-width = 0.15
-    rect_shape->height = 0.2f;   // half-height = 0.10
+struct TestShape : public IShape {
+    Mesh get_mesh() override { return Mesh{}; }
+    bool render_ui_properties() override { return false; }
+    Scalar get_sdf() const override { return Scalar(1.0f); }
+};
 
-    auto disk_shape = std::make_unique<Disk>();
-    disk_shape->name = "test_disk";
-    disk_shape->pos_x =  0.5f;
-    disk_shape->pos_y =  0.0f;
-    disk_shape->radius = 0.15f;
+TEST_CASE("Shape pointer propagation") {
+    Scalar a = varX() - 0.1f;
+    auto shape = std::make_unique<TestShape>();
+    a.set_shape(shape.get());
 
-    // Ensure the shapes do not overlap (sanity check)
-    float rect_right = rect_shape->pos_x + rect_shape->width  * 0.5f; // -0.5 + 0.15 = -0.35
-    float disk_left  = disk_shape->pos_x - disk_shape->radius;        //  0.5 - 0.15 =  0.35
-    CHECK(rect_right < disk_left); // gap of 0.70 on the x-axis
+    std::vector<Instruction> instructions = compile(a);
+    VM vm(instructions);
+    CHECK(vm.evaluate(0.0f, 0.0f) == -0.1f);
 
-    // -----------------------------
-    // 2. Build implicit union of the two shapes
-    // -----------------------------
-    Scalar union_sdf = min(rect_shape->get_sdf(), disk_shape->get_sdf());
+    std::deque<Tile> tiles;
+    vm.evaluate(tiles, Subgrid(0, 0, 16, 16));
+    CHECK_EQ(tiles.size(), 2);
 
-    // -----------------------------
-    // 3. Generate the mesh (marching squares)
-    // -----------------------------
-    const int resolution = 64;                 // grid points per axis
-    const float cell_size = 2.0f / (resolution - 1); // spacing between neighbouring grid vertices (world units)
-    ContouringResult result = implicit_to_mesh(union_sdf, resolution);
-
-    // We need sign-change information to be non-empty for this test to be meaningful
-    CHECK(!result.sign_change_data.empty());
-    CHECK(!result.expressions_list.empty());
-
-    // -----------------------------
-    // 4. Determine a tolerance that guarantees disjoint influence zones
-    //    along the x-axis the minimal gap is (disk_left - rect_right).
-    //    Any grid vertex can deviate from the true position by at most
-    //    half of the grid-cell diagonal: diag/2 where diag = sqrt(2)*cell_size.
-    //    By picking tolerance smaller than (gap - diag) / 2 we are guaranteed
-    //    that the expanded regions around both shapes are still disjoint.
-    // -----------------------------
-    const float gap_x = disk_left - rect_right;                // >= 0.70
-    const float grid_diag = std::sqrt(2.0f) * cell_size;       // ~0.045 for resolution 64
-    const float tolerance = (gap_x - grid_diag) * 0.5f;        // ~0.3275
-    CHECK(tolerance > 0.0f);
-
-    // Helper predicates to classify a world-space point (x,y)
-    auto is_near_rect = [&](float x, float y) -> bool {
-        float dx = std::abs(x - rect_shape->pos_x);
-        float dy = std::abs(y - rect_shape->pos_y);
-        return (dx <= rect_shape->width  * 0.5f + tolerance) &&
-               (dy <= rect_shape->height * 0.5f + tolerance);
-    };
-
-    auto is_near_disk = [&](float x, float y) -> bool {
-        float dx = x - disk_shape->pos_x;
-        float dy = y - disk_shape->pos_y;
-        float dist = std::sqrt(dx*dx + dy*dy);
-        return dist <= disk_shape->radius + tolerance;
-    };
-
-    // Utility to discover the first non-null shape pointer in an instruction list
-    auto discover_shape = [](const std::vector<Instruction>& instrs) -> const IShape* {
-        for (const Instruction& inst : instrs) {
-            if (inst.shape) return inst.shape;
-        }
-        return nullptr;
-    };
-
-    // -----------------------------
-    // 5. Iterate over collected grid vertices and verify ownership
-    // -----------------------------
-    int rect_vertices = 0;
-    int disk_vertices = 0;
-
-    for (const auto& [vertex_idx, data] : result.sign_change_data) {
-        const int i = vertex_idx / resolution; // row   index [0..resolution-1]
-        const int j = vertex_idx % resolution; // column index [0..resolution-1]
-        const float x = -1.0f + j * cell_size;
-        const float y = -1.0f + i * cell_size;
-
-        const bool near_rect = is_near_rect(x, y);
-        const bool near_disk = is_near_disk(x, y);
-
-        // Regions constructed above are disjoint by design
-        CHECK(!(near_rect && near_disk));
-
-        if (!near_rect && !near_disk) continue; // outside the verification bands
-
-        // Fetch corresponding expression and deduce shape pointer
-        int expr_idx = data.second;
-        REQUIRE(expr_idx >= 0);
-        REQUIRE(static_cast<size_t>(expr_idx) < result.expressions_list.size());
-        const IShape* shape_ptr = discover_shape(result.expressions_list[expr_idx]);
-        REQUIRE(shape_ptr != nullptr);
-
-        if (near_rect) {
-            rect_vertices++;
-            CHECK(shape_ptr == rect_shape.get());
-            // If near_rect is true, near_disk must be false by construction
-            CHECK_FALSE(near_disk);
-        }
-        if (near_disk) {
-            disk_vertices++;
-            CHECK(shape_ptr == disk_shape.get());
-            // Symmetric guarantee
-            CHECK_FALSE(near_rect);
-        }
+    for(const auto& tile : tiles) {
+       CHECK_EQ(tile.instructions.back().shape, shape.get());
     }
+}
 
-    // Ensure we actually tested something meaningful
-    CHECK(rect_vertices > 0);
-    CHECK(disk_vertices > 0);
-} 
+TEST_CASE("Shape pointer propagation with min") {
+    // Domain is [-1,1]x[-1,1]. 
+    // We construct the union of two strips of size 0.8. 
+    Scalar a = varX() + 0.2f;
+    Scalar b = varY() + 0.2f;
+    auto shape_a= std::make_unique<TestShape>();
+    auto shape_b = std::make_unique<TestShape>();
+
+    a.set_shape(shape_a.get());
+    b.set_shape(shape_b.get());
+
+    Scalar c = min(a,b);
+
+    std::vector<Instruction> instructions = compile(c);
+    VM vm(instructions);
+
+    std::deque<Tile> tiles;
+    vm.evaluate(tiles, Subgrid(0, 0, 16, 16));
+
+    // We should have 3 tiles, one at the top left, bottom left and bottom right. 
+    CHECK_EQ(tiles.size(), 3);
+
+    auto find_tile = [&](Interval ix0, Interval iy0) {
+        return std::find_if(tiles.begin(), tiles.end(), [&](const Tile& tile) {
+            Interval ix = vm.get_x_interval(tile.subgrid);
+            Interval iy = vm.get_y_interval(tile.subgrid);
+            return ix.lower == ix0.lower && ix.upper == ix0.upper && iy.lower == iy0.lower && iy.upper == iy0.upper;
+        });
+    };
+
+    Interval neg{-1.0f, 0.0f};
+    Interval pos{0.0f, 1.0f}; 
+
+    auto top_left_tile = find_tile(neg, pos);
+    auto bottom_right_tile = find_tile(pos, neg);
+
+    CHECK(top_left_tile != tiles.end());
+    CHECK(bottom_right_tile != tiles.end());
+
+    CHECK_EQ(top_left_tile->instructions.back().shape, shape_a.get());
+    CHECK_EQ(bottom_right_tile->instructions.back().shape, shape_b.get());
+
+    auto bottom_left_tile = find_tile(neg, neg);
+
+    CHECK(bottom_left_tile != tiles.end());
+    CHECK_EQ(bottom_left_tile->instructions.back().op, OpCode::Min);
+    CHECK(!bottom_left_tile->instructions.back().shape);
+}
+
+TEST_CASE("Shape pointer propagation with smooth min") {
+    // Domain is [-1,1]x[-1,1]. 
+    // We construct the union of two strips of size 0.5. 
+    Scalar a = varX() + 0.5f;
+    Scalar b = varY() + 0.5f;
+    auto shape_a= std::make_unique<TestShape>();
+    auto shape_b = std::make_unique<TestShape>();
+
+    a.set_shape(shape_a.get());
+    b.set_shape(shape_b.get());
+
+    Scalar c = inigo_smin(a,b, 0.1f);
+
+    std::vector<Instruction> instructions = compile(c);
+    VM vm(instructions);
+
+    std::deque<Tile> tiles;
+    vm.evaluate(tiles, Subgrid(0, 0, 16, 16));
+}
+
+TEST_CASE("Constant propagation - pure constants") {
+    // Create an expression with constants: (2.0 + 3.0) * 4.0
+    // This should be optimized to just 20.0
+    Scalar a = Scalar(2.0f);
+    Scalar b = Scalar(3.0f);
+    Scalar c = Scalar(4.0f);
+    Scalar result = (a + b) * c;
+    
+    // Compile to instructions
+    std::vector<Instruction> instructions = compile(result);
+    
+    // Before optimization, should have multiple instructions
+    CHECK(instructions.size() > 1);
+    size_t original_size = instructions.size();
+    
+    // Apply optimization
+    optimize_instructions(instructions);
+    
+    // After optimization, should have fewer instructions (optimized to single constant)
+    CHECK(instructions.size() < original_size);
+    CHECK(instructions.size() == 1);  // Should be optimized to just one constant instruction
+    
+    // After optimization, the final instruction should be a constant with value 20.0
+    CHECK(!instructions.empty());
+    const auto& final_inst = instructions.back();
+    CHECK(final_inst.op == OpCode::Const);
+    CHECK(std::abs(final_inst.constant - 20.0f) < 1e-6f);
+}
+
+TEST_CASE("Constant propagation - mixed expression") {
+    // Create an expression: x + (2.0 * 3.0) - should optimize to x + 6.0
+    Scalar x = varX();
+    Scalar a = Scalar(2.0f);
+    Scalar b = Scalar(3.0f);
+    Scalar result = x + (a * b);
+    
+    std::vector<Instruction> instructions = compile(result);
+    size_t original_size = instructions.size();
+    
+    // Apply optimization
+    optimize_instructions(instructions);
+    
+    // After optimization, should have fewer instructions (constants folded)
+    CHECK(instructions.size() < original_size);
+    CHECK(instructions.size() == 3);  // Should be: VarX, Const(6.0), Add
+    
+    // Should have: VarX, Const(6.0), Add
+    bool found_var_x = false;
+    bool found_const_6 = false;
+    bool found_add = false;
+    
+    for (const auto& inst : instructions) {
+        if (inst.op == OpCode::VarX) found_var_x = true;
+        if (inst.op == OpCode::Const && std::abs(inst.constant - 6.0f) < 1e-6f) found_const_6 = true;
+        if (inst.op == OpCode::Add) found_add = true;
+    }
+    
+    CHECK(found_var_x);
+    CHECK(found_const_6);
+    CHECK(found_add);
+}
+
+TEST_CASE("Constant propagation - unary operations") {
+    // Create an expression: sqrt(square(3.0)) - should optimize to 3.0
+    Scalar a = Scalar(3.0f);
+    Scalar result = a.square().sqrt();
+    
+    std::vector<Instruction> instructions = compile(result);
+    size_t original_size = instructions.size();
+    
+    // Apply optimization
+    optimize_instructions(instructions);
+    
+    // After optimization, should have fewer instructions (optimized to single constant)
+    CHECK(instructions.size() < original_size);
+    CHECK(instructions.size() == 1);  // Should be optimized to just one constant instruction
+    
+    // Should optimize to a single constant
+    CHECK(!instructions.empty());
+    const auto& final_inst = instructions.back();
+    CHECK(final_inst.op == OpCode::Const);
+    CHECK(std::abs(final_inst.constant - 3.0f) < 1e-6f);
+}
+
+TEST_CASE("Constant propagation - no optimization needed") {
+    // Create an expression with only variables: x + y
+    Scalar x = varX();
+    Scalar y = varY();
+    Scalar result = x + y;
+    
+    std::vector<Instruction> instructions = compile(result);
+    size_t original_size = instructions.size();
+    
+    // Apply optimization
+    optimize_instructions(instructions);
+    
+    // Should not change the number of instructions since no constants to fold
+    CHECK(instructions.size() == original_size);
+    
+    // Should still have VarX, VarY, and Add
+    bool found_var_x = false;
+    bool found_var_y = false;
+    bool found_add = false;
+    
+    for (const auto& inst : instructions) {
+        if (inst.op == OpCode::VarX) found_var_x = true;
+        if (inst.op == OpCode::VarY) found_var_y = true;
+        if (inst.op == OpCode::Add) found_add = true;
+    }
+    
+    CHECK(found_var_x);
+    CHECK(found_var_y);
+    CHECK(found_add);
+}

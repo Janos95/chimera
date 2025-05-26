@@ -1,7 +1,7 @@
 #include "shapes.h"
 #include <cmath>
-#include <imgui.h>
 #include <cstring>
+#include <imgui.h>
 
 int Rect::rect_count = 0;
 int Disk::disk_count = 0;
@@ -80,18 +80,14 @@ bool Disk::render_ui_properties() {
     return changed;
 }
 
-static void set_shape(Scalar& sdf, const IShape* shape) {
-    NodeManager::get().node_data[sdf.index].shape = shape;
-}
-
 Scalar Rect::get_sdf() const {
     Scalar sdf = rectangle(Scalar(pos_x), Scalar(pos_y), Scalar(width), Scalar(height));
-    set_shape(sdf, this);
+    sdf.set_shape(this);
     return sdf;
 }
 
 Scalar Disk::get_sdf() const {
     Scalar sdf = disk(Scalar(pos_x), Scalar(pos_y), Scalar(radius));
-    set_shape(sdf, this);
+    sdf.set_shape(this);
     return sdf;
 } 
